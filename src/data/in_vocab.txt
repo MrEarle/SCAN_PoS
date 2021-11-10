@@ -1,0 +1,15 @@
+<SOS>
+<EOS>
+run
+opposite
+right
+after
+turn
+left
+twice
+around
+thrice
+walk
+jump
+and
+look
