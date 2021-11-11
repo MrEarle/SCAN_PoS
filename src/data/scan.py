@@ -45,7 +45,7 @@ def vectorize(train):
 
     return vectorize_text, in_vectorizer, out_vectorizer
 
-def get_dataset(experiment: str):
+def get_dataset(experiment: SPLITS):
     train, test = load_dataset(experiment, split=['train', 'test'])
 
     train = train.map(lambda x: (add_sos_eos(x['commands']), add_sos_eos(x['actions'])))
