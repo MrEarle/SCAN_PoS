@@ -25,7 +25,7 @@ def load_dataset(type: SPLITS, data_dir=DATA_DIR, **kwargs):
 def add_sos_eos(text):
     return tf.strings.join(['<SOS>', text, '<EOS>'], separator=' ')
 
-def vectorize(train):
+def get_vectorizer():
     in_vectorizer = layers.TextVectorization(output_sequence_length=MAX_SEQUENCE_LENGTH, output_mode='int', max_tokens=IN_VOCAB_SIZE)
     out_vectorizer = layers.TextVectorization(output_sequence_length=MAX_SEQUENCE_LENGTH, output_mode='int', max_tokens=OUT_VOCAB_SIZE)
 
@@ -51,7 +51,7 @@ def get_dataset(experiment: SPLITS):
     train = train.map(lambda x: (add_sos_eos(x['commands']), add_sos_eos(x['actions'])))
     test = test.map(lambda x: (add_sos_eos(x['commands']), add_sos_eos(x['actions'])))
 
-    vectorize_text, in_vectorizer, out_vectorizer = vectorize(train)
+    vectorize_text, in_vectorizer, out_vectorizer = get_vectorizer()
 
     train = train.map(vectorize_text, num_parallel_calls=tf.data.AUTOTUNE)
     test = test.map(vectorize_text, num_parallel_calls=tf.data.AUTOTUNE)
