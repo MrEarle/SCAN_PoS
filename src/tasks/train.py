@@ -21,7 +21,7 @@ def train():
     if args.include_pos_tag == 'aux':
         losses[POS_OUTPUT_NAME] = 'categorical_crossentropy'
         metrics[POS_OUTPUT_NAME] = 'accuracy'
-        loss_weights[ACTION_OUTPUT_NAME] = 0.2
+        loss_weights[POS_OUTPUT_NAME] = 0.2
 
     model.compile(loss=losses, optimizer='adam', metrics=metrics, run_eagerly=True)
 
