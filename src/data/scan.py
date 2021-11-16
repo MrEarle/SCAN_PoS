@@ -40,8 +40,26 @@ def get_add_pos_tag(ds_path: str):
         pos_tag = pos_ds[in_text.numpy().decode()]
         return in_text, tf.convert_to_tensor(pos_tag), out_text
 
-    return add_pos_tag
+    return lambda x, y: tf.py_function(add_pos_tag, inp=(x, y), Tout=(tf.string, tf.string, tf.string))
 
+def get_final_map_function():
+    def map_func(x, p, y):
+        inp = {COMMAND_INPUT_NAME: x}
+        out = {ACTION_OUTPUT_NAME: y}
+        
+        if args.include_pos_tag == 'aux':
+            out[POS_OUTPUT_NAME] = p
+        elif args.include_pos_tag == 'input':
+            inp[POS_INPUT_NAME] = p
+
+        if args.teacher_forcing:
+            inp[ACTION_INPUT_NAME] = y
+        
+        return inp, out
+    
+    return tf.function(map_func)
+
+@tf.function
 def add_sos_eos(in_text, pos_text, out_text):
     in_text =  tf.strings.join(['<sos>', in_text, '<eos>'], separator=' ')
     pos_text =  tf.strings.join(['<sos>', pos_text, '<eos>'], separator=' ')
@@ -71,24 +89,25 @@ def get_vectorizer():
 
         return x, p, y
 
+
     return vectorize_text, in_vectorizer, pos_vectorizer, out_vectorizer
 
 def get_dataset(experiment: SPLITS):
     train, test = load_dataset(experiment, split=['train', 'test'])
 
     # Split dataset into tuples
-    train = train.map(lambda x: (x['commands'], x['actions']))
-    test = test.map(lambda x: (x['commands'], x['actions']))
+    train = train.map(lambda x: (x['commands'], x['actions']), num_parallel_calls=tf.data.AUTOTUNE)
+    test = test.map(lambda x: (x['commands'], x['actions']), num_parallel_calls=tf.data.AUTOTUNE)
 
     add_pos_tag = get_add_pos_tag(DS_POS_FILE)
 
     # Add pos tag to dataset
-    train = train.map(lambda x, y: tf.py_function(add_pos_tag, inp=(x, y), Tout=(tf.string, tf.string, tf.string)))
-    test = test.map(lambda x, y: tf.py_function(add_pos_tag, inp=(x, y), Tout=(tf.string, tf.string, tf.string)))
+    train = train.map(add_pos_tag, num_parallel_calls=tf.data.AUTOTUNE)
+    test = test.map(add_pos_tag, num_parallel_calls=tf.data.AUTOTUNE)
 
     # Add <sos> and <eos> to dataset
-    train = train.map(add_sos_eos)
-    test = test.map(add_sos_eos)
+    train = train.map(add_sos_eos, num_parallel_calls=tf.data.AUTOTUNE)
+    test = test.map(add_sos_eos, num_parallel_calls=tf.data.AUTOTUNE)
 
     vectorize_text, in_vectorizer, pos_vectorizer, out_vectorizer = get_vectorizer()
 
@@ -96,21 +115,13 @@ def get_dataset(experiment: SPLITS):
     train = train.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.float32, tf.float32)), num_parallel_calls=tf.data.AUTOTUNE)
     test = test.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.float32, tf.float32)), num_parallel_calls=tf.data.AUTOTUNE)
 
-    if args.include_pos_tag == 'aux':
-        # If pos tag is used in auxiliary function
-        train = train.map(lambda x, p, y: ({COMMAND_INPUT_NAME: x}, {ACTION_OUTPUT_NAME: y, POS_OUTPUT_NAME: p}))
-        test = test.map(lambda x, p, y: ({COMMAND_INPUT_NAME: x}, {ACTION_OUTPUT_NAME: y, POS_OUTPUT_NAME: p}))
-    elif args.include_pos_tag == 'input':
-        # If pos tag is used as input
-        train = train.map(lambda x, p, y: ({COMMAND_INPUT_NAME: x, POS_INPUT_NAME: p}, {ACTION_OUTPUT_NAME: y}))
-        test = test.map(lambda x, p, y: ({COMMAND_INPUT_NAME: x, POS_INPUT_NAME: p}, {ACTION_OUTPUT_NAME: y}))
-    else:
-        # No pos tag
-        train = train.map(lambda x, _, y: ({COMMAND_INPUT_NAME: x}, {ACTION_OUTPUT_NAME: y}))
-        test = test.map(lambda x, _, y: ({COMMAND_INPUT_NAME: x}, {ACTION_OUTPUT_NAME: y}))
+    final_map = get_final_map_function()
 
-    train = train.cache().prefetch(buffer_size=1)
-    test = test.cache().prefetch(buffer_size=1)
+    train = train.map(final_map, num_parallel_calls=tf.data.AUTOTUNE)
+    test = test.map(final_map, num_parallel_calls=tf.data.AUTOTUNE)
+
+    train = train.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
+    test = test.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
     return train, test, (in_vectorizer, pos_vectorizer, out_vectorizer)
 

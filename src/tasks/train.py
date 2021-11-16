@@ -1,4 +1,5 @@
 from tensorflow import keras
+from tensorflow.python.keras.backend import clip
 
 from ..data.scan import get_dataset
 from ..models.lstm import Seq2SeqAttentionLSTM
@@ -23,16 +24,28 @@ def train():
         metrics[POS_OUTPUT_NAME] = 'accuracy'
         loss_weights[POS_OUTPUT_NAME] = 0.2
 
-    model.compile(loss=losses, optimizer='adam', metrics=metrics, run_eagerly=True)
+    optimizer = keras.optimizers.Adam(lr=0.001, clipnorm=5.0)
 
-    history = model.fit(train_ds.shuffle(1000, reshuffle_each_iteration=True).batch(512, drop_remainder=True), epochs=20)
+    model.compile(
+        optimizer=optimizer,
+        loss=losses,
+        metrics=metrics,
+        loss_weights=loss_weights,
+        run_eagerly=True
+    )
+
+    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=f'snap/{args.name}', histogram_freq=1)
+
+    model.fit(
+        train_ds.shuffle(1000, reshuffle_each_iteration=True).batch(args.batch_size),
+        epochs=100,
+        callbacks=[tensorboard_callback],
+    )
     
     model.summary()
-    keras.utils.plot_model(model, "multi_input_and_output_model.png", show_shapes=True)
 
-    loss, acc = model.evaluate(test_ds.batch(32, drop_remainder=True))
-    print(f'Test loss: {loss:.4f}')
-    print(f'Test accuracy: {acc:.4f}')
+    result = model.evaluate(test_ds.batch(512))
+    print(result)
 
 if __name__ == '__main__':
     train()

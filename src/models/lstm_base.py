@@ -3,6 +3,7 @@ from typing import Optional
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import layers
+import numpy as np
 
 from ..data.scan import IN_VOCAB_SIZE, MAX_SEQUENCE_LENGTH, OUT_VOCAB_SIZE, POS_VOCAB_SIZE
 from ..utils.args import args
@@ -36,8 +37,10 @@ class AbsSeq2SeqLSTM(keras.Model):
             self.pos_tag_linear = layers.Dense(POS_VOCAB_SIZE, activation=self.pos_tag_softmax, name=POS_OUTPUT_NAME)
             
 
-    def call(self, inputs, max_length=MAX_SEQUENCE_LENGTH, teacher_actions: Optional[tf.Tensor] = None, training=True):
+    def call(self, inputs, max_length=MAX_SEQUENCE_LENGTH, training=True):
         command = inputs[COMMAND_INPUT_NAME]
+        teacher_actions = inputs[ACTION_INPUT_NAME] if args.teacher_forcing else None
+
         all_hidden, final_hidden, final_cell = self.encode(command, training)
 
         state = (final_hidden, final_cell)
@@ -68,18 +71,22 @@ class AbsSeq2SeqLSTM(keras.Model):
         # First token (<sos>)
         prediction = tf.repeat(tf.one_hot([self.start_idx], depth=OUT_VOCAB_SIZE), [batch_size], axis=0)
 
+        if training and args.teacher_forcing:
+            teacher_forcing_indices = tf.where(np.random.rand(batch_size) < args.teacher_forcing)
+
         out = []
         # Por alguna razon sin esto se cae
         self.out_lstm.reset_dropout_mask()
         self.out_lstm.reset_recurrent_dropout_mask()
         for i in range(max_length):
-            if teacher_actions is not None:
+            y_t = tf.argmax(prediction, axis=1)
+
+            if training and args.teacher_forcing:
                 # Teacher actions es cuando lo queremos entrenar "haciendo como 
                 # que elige la acción correcta"
-                y_t = teacher_actions[i, :]
-            else:
-                # Elegir la acción más probable en base a su predicción anterior
-                y_t = tf.argmax(prediction, axis=-1)
+                teacher_actions = tf.gather_nd(teacher_actions, teacher_forcing_indices)
+                t_actions = tf.argmax(teacher_actions[:, i], axis=-1)
+                y_t = tf.tensor_scatter_nd_update(y_t, teacher_forcing_indices, t_actions)
 
             # Codificar la acción de input
             y_t = self.out_embedding(y_t)
