@@ -1,5 +1,5 @@
-<SOS>
-<EOS>
+<sos>
+<eos>
 I_TURN_LEFT
 I_TURN_RIGHT
 I_RUN

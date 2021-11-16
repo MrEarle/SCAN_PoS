@@ -1,5 +1,5 @@
-<SOS>
-<EOS>
+<sos>
+<eos>
 run
 opposite
 right
