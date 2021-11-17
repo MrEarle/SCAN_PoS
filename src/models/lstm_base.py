@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from typing import Optional
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import layers
@@ -9,23 +8,54 @@ from ..data.scan import IN_VOCAB_SIZE, MAX_SEQUENCE_LENGTH, OUT_VOCAB_SIZE, POS_
 from ..utils.args import args
 from ..utils.constants import *
 
-
+layers.Bidirectional
 class AbsSeq2SeqLSTM(keras.Model):
-    """Base LSTM Seq2Seq model. Works with no pos tag or pos tag as input."""
-    def __init__(self, hiden_dim=128, dropout=0.1, start_idx=0, end_idx=2, pad_idx=1, **kwargs):
+    """Base LSTM Seq2Seq model. Works with no pos tag, pos tag as input or pos tag as auxiliary function."""
+    def __init__(self, start_idx=0, end_idx=2, pad_idx=1, **kwargs):
         super().__init__(**kwargs)
+        self.hidden_dim = args.hidden_size
+        self.dropout = args.dropout
+        self.num_layers = args.hidden_layers
+
         self.start_idx = start_idx
         self.end_idx = end_idx
         self.pad_idx = pad_idx
 
-        self.in_embedding = layers.Embedding(IN_VOCAB_SIZE, hiden_dim, mask_zero=True, name=COMMAND_INPUT_NAME)
+        self.in_embedding = layers.Embedding(IN_VOCAB_SIZE, self.hidden_dim, mask_zero=True, name=COMMAND_INPUT_NAME)
         self.out_embedding = layers.Embedding(OUT_VOCAB_SIZE, OUT_VOCAB_SIZE, mask_zero=True, name=ACTION_OUTPUT_NAME)
 
-        self.in_forward_lstm = layers.LSTM(units=hiden_dim, return_sequences=True, return_state=True, name='input_forward_lstm')
-        self.in_backward_lstm = layers.LSTM(units=hiden_dim, return_sequences=True, return_state=True, go_backwards=True, name='input_backward_lstm')
+        if args.include_pos_tag == 'input':
+            self.pos_embedding = layers.Embedding(POS_VOCAB_SIZE, self.hidden_dim, mask_zero=True, name=POS_INPUT_NAME)
+
+        self.in_dropout = layers.Dropout(self.dropout)
+
+        self.in_lstm = layers.Bidirectional(
+            layers.LSTM(
+                self.hidden_dim,
+                return_sequences=True,
+                return_state=True,
+                recurrent_dropout=self.dropout,
+                dropout=self.dropout,
+                name='input_lstm'
+            ),
+            merge_mode='sum')
+        if self.num_layers == 2:
+            self.in_lstm2 = layers.Bidirectional(
+                layers.LSTM(
+                    self.hidden_dim,
+                    return_sequences=True,
+                    return_state=True,
+                    recurrent_dropout=self.dropout,
+                    dropout=self.dropout,
+                    name='input_lstm2'
+                ),
+                merge_mode='sum'
+            )
+
         self.out_lstm = layers.LSTMCell(
-            units=hiden_dim,
-            dropout=dropout,
+            units=self.hidden_dim,
+            recurrent_dropout=self.dropout,
+            dropout=self.dropout,
             name='output_lstm'
         )
 
@@ -38,10 +68,9 @@ class AbsSeq2SeqLSTM(keras.Model):
             
 
     def call(self, inputs, max_length=MAX_SEQUENCE_LENGTH, training=True):
-        command = inputs[COMMAND_INPUT_NAME]
         teacher_actions = inputs[ACTION_INPUT_NAME] if args.teacher_forcing else None
 
-        all_hidden, final_hidden, final_cell = self.encode(command, training)
+        all_hidden, final_hidden, final_cell = self.encode(inputs, training)
 
         state = (final_hidden, final_cell)
         predictions = self.decode(all_hidden, state, max_length, teacher_actions, training)
@@ -53,14 +82,23 @@ class AbsSeq2SeqLSTM(keras.Model):
         return {ACTION_OUTPUT_NAME: predictions}
 
     def encode(self, inputs, training):
-        """Encode inputs. Doesn't support pos tags as inputs."""
-        embedded_inputs = self.in_embedding(inputs)
-        f_all_h, f_fin_h, f_fin_c = self.in_forward_lstm(embedded_inputs, training=training)
-        b_all_h, b_fin_h, b_fin_c = self.in_backward_lstm(embedded_inputs, training=training)
+        """Encode inputs."""
+        embedded_inputs = self.in_embedding(inputs[COMMAND_INPUT_NAME])
 
-        all_hidden = f_all_h + b_all_h
-        final_hidden = f_fin_h + b_fin_h
-        final_cell = f_fin_c + b_fin_c
+        if args.include_pos_tag == 'input':
+            embedded_pos = self.pos_embedding(inputs[POS_INPUT_NAME])
+            embedded_inputs = tf.concat((embedded_inputs, embedded_pos), axis=-1)
+
+        embedded_inputs = self.in_dropout(embedded_inputs, training=training)
+
+        all_hidden, h_f, o_f, h_b, o_b = self.in_lstm(embedded_inputs)
+        final_hidden = h_f + h_b
+        final_cell = o_f + o_b
+
+        if self.num_layers == 2:
+            all_hidden, h_f, o_f, h_b, o_b = self.in_lstm2(embedded_inputs)
+            final_hidden = h_f + h_b
+            final_cell = o_f + o_b
 
         return all_hidden, final_hidden, final_cell
 
@@ -85,8 +123,7 @@ class AbsSeq2SeqLSTM(keras.Model):
                 # Teacher actions es cuando lo queremos entrenar "haciendo como 
                 # que elige la acción correcta"
                 teacher_actions = tf.gather_nd(teacher_actions, teacher_forcing_indices)
-                t_actions = tf.argmax(teacher_actions[:, i], axis=-1)
-                y_t = tf.tensor_scatter_nd_update(y_t, teacher_forcing_indices, t_actions)
+                y_t = tf.tensor_scatter_nd_update(y_t, teacher_forcing_indices, teacher_actions[:, i])
 
             # Codificar la acción de input
             y_t = self.out_embedding(y_t)
@@ -101,39 +138,3 @@ class AbsSeq2SeqLSTM(keras.Model):
     @abstractmethod
     def decode_step(self, y_t, state, all_hidden, training=True):
         pass
-
-class AbsSeq2SeqLSTMPosInput(AbsSeq2SeqLSTM):
-    """Base Seq2Seq LSTM model. Requires pos tags as input."""
-    def __init__(self, hiden_dim=128, dropout=0.1, start_idx=0, end_idx=2, pad_idx=1, **kwargs):
-        super().__init__(hiden_dim=hiden_dim, dropout=dropout, start_idx=start_idx, end_idx=end_idx, pad_idx=pad_idx, **kwargs)
-        self.pos_embedding = layers.Embedding(POS_VOCAB_SIZE, hiden_dim, mask_zero=True, name=POS_INPUT_NAME)
-
-    def encode(self, command, pos, training):
-        """Encode inputs. Requires pos tags as inputs."""
-        embedded_command = self.in_embedding(command)
-        embedded_pos = self.pos_embedding(pos)
-        embedded_inputs = tf.concat((embedded_command, embedded_pos), axis=-1)
-        f_all_h, f_fin_h, f_fin_c = self.in_forward_lstm(embedded_inputs, training=training)
-        b_all_h, b_fin_h, b_fin_c = self.in_backward_lstm(embedded_inputs, training=training)
-
-        all_hidden = f_all_h + b_all_h
-        final_hidden = f_fin_h + b_fin_h
-        final_cell = f_fin_c + b_fin_c
-
-        return all_hidden, final_hidden, final_cell
-
-                    
-    def call(self, inputs, max_length=MAX_SEQUENCE_LENGTH, teacher_actions: Optional[tf.Tensor] = None, training=True):
-        command = inputs[COMMAND_INPUT_NAME]
-        pos = inputs[POS_INPUT_NAME]
-
-        all_hidden, final_hidden, final_cell = self.encode(command, pos, training)
-
-        state = (final_hidden, final_cell)
-        predictions = self.decode(all_hidden, state, max_length, teacher_actions, training)
-
-        return {ACTION_OUTPUT_NAME: predictions}
-
-
-# Choose Base model depending if we want to include pos tag as input or not
-BASE_SEQ2SEQ_LSTM = AbsSeq2SeqLSTMPosInput if args.include_pos_tag == "input" else AbsSeq2SeqLSTM

@@ -1,19 +1,22 @@
 from tensorflow import keras
-from tensorflow.python.keras.backend import clip
 
-from ..data.scan import get_dataset
-from ..models.lstm import Seq2SeqAttentionLSTM
+from src.data.scan import get_final_map_function
+
+from ..models.lstm import Seq2SeqAttentionLSTM, Seq2SeqLSTM
 from ..utils.constants import ACTION_OUTPUT_NAME, POS_OUTPUT_NAME
 from ..utils.args import args
 
-def train():
-    train_ds, test_ds, (in_vec, _, _) = get_dataset('simple')
+def train(train_ds, test_ds, pad_idx, start_idx, end_idx, hp_callback=None):
 
-    pad_idx = in_vec.get_vocabulary().index('')
-    start_idx = in_vec.get_vocabulary().index('<sos>')
-    end_idx = in_vec.get_vocabulary().index('<eos>')
+    final_map_fn = get_final_map_function()
 
-    model = Seq2SeqAttentionLSTM(pad_idx=pad_idx, start_idx=start_idx, end_idx=end_idx)
+    train_ds = train_ds.map(final_map_fn)
+    test_ds = test_ds.map(final_map_fn)
+
+    if args.use_attention:
+        model = Seq2SeqAttentionLSTM(pad_idx=pad_idx, start_idx=start_idx, end_idx=end_idx)
+    else:
+        model = Seq2SeqLSTM(pad_idx=pad_idx, start_idx=start_idx, end_idx=end_idx)
 
     losses = {ACTION_OUTPUT_NAME: 'categorical_crossentropy'}
     metrics = {ACTION_OUTPUT_NAME: 'accuracy'}
@@ -24,7 +27,7 @@ def train():
         metrics[POS_OUTPUT_NAME] = 'accuracy'
         loss_weights[POS_OUTPUT_NAME] = 0.2
 
-    optimizer = keras.optimizers.Adam(lr=0.001, clipnorm=5.0)
+    optimizer = keras.optimizers.Adam(learning_rate=0.001, clipnorm=5.0)
 
     model.compile(
         optimizer=optimizer,
@@ -36,16 +39,22 @@ def train():
 
     tensorboard_callback = keras.callbacks.TensorBoard(log_dir=f'snap/{args.name}', histogram_freq=1)
 
+    callbacks = [tensorboard_callback]
+    if hp_callback:
+        callbacks.append(hp_callback)
+
     model.fit(
         train_ds.shuffle(1000, reshuffle_each_iteration=True).batch(args.batch_size),
-        epochs=100,
-        callbacks=[tensorboard_callback],
+        epochs=args.epochs,
+        callbacks=callbacks,
     )
     
     model.summary()
 
     result = model.evaluate(test_ds.batch(512))
     print(result)
+
+    return result
 
 if __name__ == '__main__':
     train()

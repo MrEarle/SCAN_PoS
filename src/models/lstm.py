@@ -1,10 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from .lstm_base import BASE_SEQ2SEQ_LSTM
+from .lstm_base import AbsSeq2SeqLSTM
 
 
-class Seq2SeqLSTM(BASE_SEQ2SEQ_LSTM):
+class Seq2SeqLSTM(AbsSeq2SeqLSTM):
     """Seq2Seq LSTM. Without Attention"""
     def decode_step(self, y_t, state, all_hidden, training=True):
         x, state = self.out_lstm(y_t, state, training=training)
@@ -13,12 +13,10 @@ class Seq2SeqLSTM(BASE_SEQ2SEQ_LSTM):
         return prediction, state
 
 
-class Seq2SeqAttentionLSTM(BASE_SEQ2SEQ_LSTM):
+class Seq2SeqAttentionLSTM(AbsSeq2SeqLSTM):
     """Attention Seq2Seq."""
-    def __init__(self, hiden_dim=128, dropout=0.1, start_idx=0, end_idx=2, pad_idx=1, **kwargs):
+    def __init__(self, start_idx=0, end_idx=2, pad_idx=1, **kwargs):
         super().__init__(
-            hiden_dim=hiden_dim,
-            dropout=dropout,
             start_idx=start_idx,
             end_idx=end_idx,
             pad_idx=pad_idx,

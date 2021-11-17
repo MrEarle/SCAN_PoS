@@ -45,10 +45,10 @@ def get_add_pos_tag(ds_path: str):
 def get_final_map_function():
     def map_func(x, p, y):
         inp = {COMMAND_INPUT_NAME: x}
-        out = {ACTION_OUTPUT_NAME: y}
+        out = {ACTION_OUTPUT_NAME: tf.one_hot(y, depth=OUT_VOCAB_SIZE)}
         
         if args.include_pos_tag == 'aux':
-            out[POS_OUTPUT_NAME] = p
+            out[POS_OUTPUT_NAME] = tf.one_hot(p, depth=POS_VOCAB_SIZE)
         elif args.include_pos_tag == 'input':
             inp[POS_INPUT_NAME] = p
 
@@ -84,9 +84,6 @@ def get_vectorizer():
         p = pos_vectorizer(p)
         y = out_vectorizer(y)
 
-        p = tf.one_hot(p, depth=POS_VOCAB_SIZE)
-        y = tf.one_hot(y, depth=OUT_VOCAB_SIZE)
-
         return x, p, y
 
 
@@ -112,16 +109,13 @@ def get_dataset(experiment: SPLITS):
     vectorize_text, in_vectorizer, pos_vectorizer, out_vectorizer = get_vectorizer()
 
     # Vectorize dataset
-    train = train.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.float32, tf.float32)), num_parallel_calls=tf.data.AUTOTUNE)
-    test = test.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.float32, tf.float32)), num_parallel_calls=tf.data.AUTOTUNE)
-
-    final_map = get_final_map_function()
-
-    train = train.map(final_map, num_parallel_calls=tf.data.AUTOTUNE)
-    test = test.map(final_map, num_parallel_calls=tf.data.AUTOTUNE)
+    train = train.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.int64, tf.int64)), num_parallel_calls=tf.data.AUTOTUNE)
+    test = test.map(lambda x, p, y: tf.py_function(vectorize_text, inp=(x,p,y), Tout=(tf.int64, tf.int64, tf.int64)), num_parallel_calls=tf.data.AUTOTUNE)
 
     train = train.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
     test = test.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
+
+    print(len(train), len(test))
 
     return train, test, (in_vectorizer, pos_vectorizer, out_vectorizer)
 
