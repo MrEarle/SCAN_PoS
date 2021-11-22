@@ -361,3 +361,4 @@ $RECYCLE.BIN/
 .vscode
 src/data/scan
 **snap**
+.comet.config

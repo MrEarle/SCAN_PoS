@@ -6,7 +6,6 @@ import tensorflow_datasets as tfds
 from tensorflow.keras import layers
 
 from ..utils.constants import *
-from ..utils.args import args
 
 MAX_SEQUENCE_LENGTH = 50
 
@@ -42,17 +41,17 @@ def get_add_pos_tag(ds_path: str):
 
     return lambda x, y: tf.py_function(add_pos_tag, inp=(x, y), Tout=(tf.string, tf.string, tf.string))
 
-def get_final_map_function():
+def get_final_map_function(include_pos_tag: bool = DEFAULT_POS_TAG_INCLUDE, teacher_forcing: float = DEFAULT_TEACHER_FORCE):
     def map_func(x, p, y):
         inp = {COMMAND_INPUT_NAME: x}
         out = {ACTION_OUTPUT_NAME: tf.one_hot(y, depth=OUT_VOCAB_SIZE)}
         
-        if args.include_pos_tag == 'aux':
+        if include_pos_tag == 'aux':
             out[POS_OUTPUT_NAME] = tf.one_hot(p, depth=POS_VOCAB_SIZE)
-        elif args.include_pos_tag == 'input':
+        elif include_pos_tag == 'input':
             inp[POS_INPUT_NAME] = p
 
-        if args.teacher_forcing:
+        if teacher_forcing:
             inp[ACTION_INPUT_NAME] = y
         
         return inp, out
