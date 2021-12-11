@@ -51,17 +51,19 @@ def train(
 
     # Create metrics and losses according to task
     losses = {ACTION_OUTPUT_NAME: "categorical_crossentropy"}
-    metrics = {ACTION_OUTPUT_NAME: keras.metrics.CategoricalAccuracy(name=ACTION_OUTPUT_NAME)}
-    loss_weights = {ACTION_OUTPUT_NAME: 1.0}
+    metrics = {
+        ACTION_OUTPUT_NAME: keras.metrics.CategoricalAccuracy(
+            name="accuracy" if params["include_pos_tag"] == "aux" else f"{ACTION_OUTPUT_NAME}_accuracy"
+        )
+    }
 
     if params["include_pos_tag"] == "aux":
         losses[POS_OUTPUT_NAME] = "categorical_crossentropy"
-        metrics[POS_OUTPUT_NAME] = keras.metrics.CategoricalAccuracy(name=POS_OUTPUT_NAME)
-        loss_weights[POS_OUTPUT_NAME] = 0.2
+        metrics[POS_OUTPUT_NAME] = keras.metrics.CategoricalAccuracy(name="accuracy")
 
     # Compile model
     optimizer = keras.optimizers.Adam(learning_rate=0.001, clipnorm=5.0)
-    model.compile(optimizer=optimizer, loss=losses, metrics=metrics, loss_weights=loss_weights, run_eagerly=True)
+    model.compile(optimizer=optimizer, loss=losses, metrics=metrics, run_eagerly=True)
 
     # Checkpoint callback
     checkpoint_path = os.path.join("snap", params["name"])
@@ -70,7 +72,7 @@ def train(
 
     checkpoint_callback = ModelCheckpoint(
         filepath=os.path.join(checkpoint_path, "best_action_accuracy"),
-        monitor=ACTION_OUTPUT_NAME,
+        monitor=f"{ACTION_OUTPUT_NAME}_accuracy",
         verbose=1,
         save_best_only=True,
         save_weights_only=True,
@@ -85,6 +87,16 @@ def train(
             epochs=params["epochs"],
             callbacks=[checkpoint_callback],
         )
+
+    with experiment.test():
+        results = model.evaluate(test_ds.batch(params["batch_size"]))
+
+        results = {x: y for x, y in zip(model.metrics_names, results)}
+
+        if ACTION_OUTPUT_NAME not in results and "accuracy" in results:
+            results[ACTION_OUTPUT_NAME] = results["accuracy"]
+
+        experiment.log_metrics(results)
 
     return model, history
 

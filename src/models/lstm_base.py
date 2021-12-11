@@ -4,7 +4,7 @@ import tensorflow.keras as keras
 from tensorflow.keras import layers
 import numpy as np
 
-from ..data.scan import IN_VOCAB_SIZE, MAX_SEQUENCE_LENGTH, OUT_VOCAB_SIZE, POS_VOCAB_SIZE
+from ..data.scan import IN_VOCAB_SIZE, MAX_OUT_SEQUENCE_LENGTH, MAX_SEQUENCE_LENGTH, OUT_VOCAB_SIZE, POS_VOCAB_SIZE
 from ..utils.constants import *
 
 
@@ -76,7 +76,7 @@ class AbsSeq2SeqLSTM(keras.Model):
             self.pos_tag_softmax = layers.Softmax()
             self.pos_tag_linear = layers.Dense(POS_VOCAB_SIZE, activation=self.pos_tag_softmax, name=POS_OUTPUT_NAME)
 
-    def call(self, inputs, max_length=MAX_SEQUENCE_LENGTH, training=True):
+    def call(self, inputs, max_length=MAX_OUT_SEQUENCE_LENGTH, training=True):
         teacher_actions = inputs[ACTION_INPUT_NAME] if self.teacher_forcing else None
 
         all_hidden, final_hidden, final_cell = self.encode(inputs, training)

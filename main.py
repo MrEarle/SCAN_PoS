@@ -1,40 +1,45 @@
+import os
+
 from comet_ml import Optimizer
 from src.tasks import train
 from src.data.scan import get_dataset
 from src.utils.constants import ACTION_OUTPUT_NAME, get_default_params
 
 if __name__ == "__main__":
-    train_ds, test_ds, (in_vec, _, _) = get_dataset("simple")
+    train_ds, test_ds, (in_vec, _, _) = get_dataset("addprim_jump")
     pad_idx = in_vec.get_vocabulary().index("")
     start_idx = in_vec.get_vocabulary().index("<sos>")
     end_idx = in_vec.get_vocabulary().index("<eos>")
 
-    params = {**get_default_params(), "epochs": 50}
+    params = {**get_default_params(), "epochs": 40}
 
     # Optimizer parameters:
     opt_params = {
         # We pick the Bayes algorithm:
         "algorithm": "bayes",
-        "name": "SCAN-PoS Hyperparam Optimizer",
+        "name": "SCAN-PoS Hyperparam Optimizer -- Jump Split",
         # Declare your hyperparameters in the Vizier-inspired format:
         "parameters": {
             "hidden_layers": {"type": "discrete", "values": [1, 2]},
-            "hidden_size": {"type": "discrete", "values": [25, 50, 100, 200, 400]},
-            "dropout": {"type": "discrete", "values": [0.0, 0.1, 0.5]},
+            "hidden_size": {"type": "discrete", "values": [100, 200]},
+            "dropout": {"type": "discrete", "values": [0.1, 0.5]},
             "use_attention": {"type": "discrete", "values": [False, True]},
-            "include_pos_tag": {"type": "categorical", "values": ["", "aux", "input"]},
+            # "include_pos_tag": {"type": "categorical", "values": ["aux", "input"]},
+            "include_pos_tag": {"type": "categorical", "values": [""]},
         },
         # Declare what we will be optimizing, and how:
         "spec": {
-            "metric": f"{ACTION_OUTPUT_NAME}_accuracy",
+            "metric": f"test_action_output_accuracy",
             "objective": "maximize",
         },
     }
 
     # Comet ML Experiment
-    optimizer = Optimizer("131940d32ca94e85b85256a5b97e2a15")
+    optimizer = Optimizer("b389ea20499849eda68625590eac53ac")
 
-    for experiment in optimizer.get_experiments(project_name="SCAN-PoS"):
+    models = os.listdir("snap")
+
+    for experiment in optimizer.get_experiments(project_name="SCAN-PoS-Split(jump)"):
         params = {
             **params,
             "hidden_size": experiment.get_parameter("hidden_size"),
@@ -42,7 +47,7 @@ if __name__ == "__main__":
             "dropout": experiment.get_parameter("dropout"),
             "use_attention": experiment.get_parameter("use_attention"),
             "include_pos_tag": experiment.get_parameter("include_pos_tag"),
-            "batch_size": 256,
+            "batch_size": 512,
         }
 
         params[
@@ -54,5 +59,8 @@ if __name__ == "__main__":
 
         if params["use_attention"]:
             params["name"] += "-attention"
+
+        if params["name"] in models:
+            continue
 
         train.train(train_ds, test_ds, pad_idx, start_idx, end_idx, experiment, params)
