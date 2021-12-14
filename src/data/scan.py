@@ -46,7 +46,7 @@ def get_add_pos_tag(ds_path: str):
 
 
 def get_final_map_function(
-    include_pos_tag: bool = DEFAULT_POS_TAG_INCLUDE, teacher_forcing: float = DEFAULT_TEACHER_FORCE
+    include_pos_tag: str = DEFAULT_POS_TAG_INCLUDE, teacher_forcing: float = DEFAULT_TEACHER_FORCE
 ):
     def map_func(x, p, y):
         inp = {COMMAND_INPUT_NAME: x}

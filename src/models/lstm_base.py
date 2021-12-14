@@ -35,7 +35,7 @@ class AbsSeq2SeqLSTM(keras.Model):
         self.pad_idx = pad_idx
 
         self.in_embedding = layers.Embedding(IN_VOCAB_SIZE, self.hidden_dim, mask_zero=True, name=COMMAND_INPUT_NAME)
-        self.out_embedding = layers.Embedding(OUT_VOCAB_SIZE, OUT_VOCAB_SIZE, mask_zero=True, name=ACTION_OUTPUT_NAME)
+        self.out_embedding = layers.Embedding(OUT_VOCAB_SIZE, OUT_VOCAB_SIZE, name=ACTION_OUTPUT_NAME)
 
         if include_pos_tag == "input":
             self.pos_embedding = layers.Embedding(POS_VOCAB_SIZE, self.hidden_dim, mask_zero=True, name=POS_INPUT_NAME)
@@ -64,10 +64,7 @@ class AbsSeq2SeqLSTM(keras.Model):
                 merge_mode="sum",
             )
 
-        # TODO: Remove recurrent dropout
-        self.out_lstm = layers.LSTMCell(
-            units=self.hidden_dim, recurrent_dropout=self.dropout, dropout=self.dropout, name="output_lstm"
-        )
+        self.out_lstm = layers.LSTMCell(units=self.hidden_dim, dropout=self.dropout, name="output_lstm")
 
         self.softmax_out = layers.Softmax()
         self.linear_out = layers.Dense(units=OUT_VOCAB_SIZE, activation=self.softmax_out, name="output_dense")

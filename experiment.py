@@ -18,32 +18,38 @@ def get_args():
 
 
 if __name__ == "__main__":
-    train_ds, test_ds, (in_vec, _, _) = get_dataset("addprim_jump")
-    pad_idx = in_vec.get_vocabulary().index("")
-    start_idx = in_vec.get_vocabulary().index("<sos>")
-    end_idx = in_vec.get_vocabulary().index("<eos>")
-
     args = get_args()
 
     params = {
         **get_default_params(),
-        "epochs": 60,
+        "epochs": 150,
         "hidden_size": args.hidden_size,
         "hidden_layers": args.hidden_layers,
         "dropout": args.dropout,
-        "use_attention": args.use_attention,
+        "use_attention": True,
         "include_pos_tag": args.include_pos_tag,
         "batch_size": 512,
     }
 
-    params["name"] = f"h_size({params['hidden_size']})-h_layers({params['hidden_layers']})-dropout({params['dropout']})"
+    for split in ["simple", "addprim_jump", "mcd1"]:
+        train_ds, test_ds, (in_vec, _, _) = get_dataset(split)
+        pad_idx = in_vec.get_vocabulary().index("")
+        start_idx = in_vec.get_vocabulary().index("<sos>")
+        end_idx = in_vec.get_vocabulary().index("<eos>")
 
-    if params["include_pos_tag"] != "":
-        params["name"] += f"-pos({params['include_pos_tag']})"
+        for pt in ["", "aux", "input"]:
+            params["include_pos_tag"] = pt
+            params[
+                "name"
+            ] = f"{split}-h_size({params['hidden_size']})-h_layers({params['hidden_layers']})-dropout({params['dropout']})"
 
-    if params["use_attention"]:
-        params["name"] += "-attention"
+            if params["include_pos_tag"] != "":
+                params["name"] += f"-pos({params['include_pos_tag']})"
 
-    experiment = Experiment(project_name="scan-addprim-jump")
+            if params["use_attention"]:
+                params["name"] += "-attention"
 
-    train.train(train_ds, test_ds, pad_idx, start_idx, end_idx, experiment, params)
+            params["repetition"] = 2
+
+            experiment = Experiment(project_name="scan-generalization")
+            train.train(train_ds, test_ds, pad_idx, start_idx, end_idx, experiment, params)
