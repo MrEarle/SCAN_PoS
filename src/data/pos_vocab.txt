@@ -1,9 +1,7 @@
 <sos>
 <eos>
-ADJ
-ADP
-VERB
-PRT
 ADV
-CONJ
-NOUN
+CNJ
+DIR
+MOD
+VRB
