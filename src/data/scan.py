@@ -49,9 +49,22 @@ def get_add_pos_tag(ds_path: str):
 
 
 def get_final_map_function(
-    include_pos_tag: str = DEFAULT_POS_TAG_INCLUDE, teacher_forcing: float = DEFAULT_TEACHER_FORCE
+    include_pos_tag: str = DEFAULT_POS_TAG_INCLUDE, teacher_forcing: float = DEFAULT_TEACHER_FORCE, transformer_mode: bool = False
 ):
+    if transformer_mode:
+        def map_func(x, p, y):
+
+            inp = {'inputs': x, 'targets': y}
+
+            if include_pos_tag == "aux":
+                inp[POS_OUTPUT_NAME] = tf.one_hot(p, depth=POS_VOCAB_SIZE)
+            elif include_pos_tag == "input":
+                inp[POS_INPUT_NAME] = p
+
+            return inp
+        return tf.function(map_func)
     def map_func(x, p, y):
+
         inp = {COMMAND_INPUT_NAME: x}
         out = {ACTION_OUTPUT_NAME: tf.one_hot(y, depth=OUT_VOCAB_SIZE)}
 
