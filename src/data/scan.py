@@ -1,5 +1,8 @@
 import json
-from typing import Literal
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
