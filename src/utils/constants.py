@@ -1,5 +1,7 @@
-from typing import TypedDict
-
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 COMMAND_INPUT_NAME = "input_embedding"
 POS_INPUT_NAME = "pos_embedding"
