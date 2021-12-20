@@ -64,8 +64,10 @@ def get_final_map_function(
             return inp
         func = tf.function(map_func)
         def final_func(x,p,y):
-            out = final_func(x,p,y)
-            out.set_shape([None])
+            inp, tar = final_func(x,p,y)
+            inp.set_shape([None])
+            tar.set_shape([None])
+            return inp, tar
         return final_func
     def map_func(x, p, y):
 
