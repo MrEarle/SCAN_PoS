@@ -54,7 +54,7 @@ def get_final_map_function(
     if transformer_mode:
         def map_func(x, p, y):
 
-            inp = {'inputs': x, 'targets': y}
+            inp = (x,y)
 
             if include_pos_tag == "aux":
                 inp[POS_OUTPUT_NAME] = tf.one_hot(p, depth=POS_VOCAB_SIZE)
