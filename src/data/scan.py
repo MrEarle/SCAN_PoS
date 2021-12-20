@@ -62,7 +62,11 @@ def get_final_map_function(
                 inp[POS_INPUT_NAME] = p
 
             return inp
-        return tf.function(map_func)
+        func = tf.function(map_func)
+        def final_func(x,p,y):
+            out = final_func(x,p,y)
+            out.set_shape([None])
+        return final_func
     def map_func(x, p, y):
 
         inp = {COMMAND_INPUT_NAME: x}
