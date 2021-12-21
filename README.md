@@ -87,3 +87,7 @@ if params["include_pos_tag"] == "aux":
 optimizer = keras.optimizers.Adam(learning_rate=0.001, clipnorm=5.0)
 model.compile(optimizer=optimizer, loss=losses, metrics=metrics, run_eagerly=True)
   ```
+  
+## Transformer
+
+En el archivo TransformerPosTag.ipynb se encuentra el código para crear un modelo transformer, obtener los datos y entrenar el modelo. Se entregan 2 loops de entrenamiento, en donde 1 es con pos tag como tarea auxiliar y el otro es sin pos tag.
