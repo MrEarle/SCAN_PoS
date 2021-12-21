@@ -5,7 +5,7 @@ Experiments that include Part of Speech to SCAN dataset.
 Integrante | Correo
 ---|---
 Benjamin Earle | biearle@uc.cl
-Jorge Perez | 
+Jorge Perez | jiperez11@uc.cl
 
 ## Data
 
